@@ -7,17 +7,22 @@ import akka.actor.AbstractActor;
 import akka.event.Logging;
 import akka.event.LoggingAdapter;
 import ticketmasta.messages.AvailableSeatsRequestMessage;
-import ticketmasta.messages.AvailableSeatsResponseMessage;
+import ticketmasta.messages.SeatStatusResponseMessage;
 
 public class CustomerActor extends AbstractActor {
 	private final LoggingAdapter log = Logging.getLogger(getContext().getSystem(), this);
 	
-	 private AbstractActor.Receive idle;
-	 private AbstractActor.Receive busy;
+	//TODO: remove
+	private AbstractActor.Receive idle;
+	private AbstractActor.Receive busy;
 	
 	private String email;
 	
-	public CustomerActor(String email) {
+	public static Props props(String email) {
+		return Props.create(CustomerActor.class, () -> new CustomerActor(email));
+	}
+	
+	private CustomerActor(String email) {
 		this.email = email;
 		this.idle = receiveBuilder()
 	        .matchEquals("foo", s -> {
@@ -35,7 +40,7 @@ public class CustomerActor extends AbstractActor {
 				.match(String.class, s -> {
 					log.info("Received String message: {}", s);
 				})
-				.match(AvailableSeatsResponseMessage.class, m -> {
+				.match(SeatStatusResponseMessage.class, m -> {
 					log.debug("Received AvailableSeatsResponseMessage message: {}", m.toString());
 					
 				})

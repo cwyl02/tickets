@@ -4,9 +4,10 @@
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
 import akka.actor.Props;
-import ticketmasta.actors.VenueActor;
+import ticketmasta.actors.CustomerActor;
+import ticketmasta.actors.BoxOfficeActor;
 import ticketmasta.services.ITicketService;
-import ticketmasta.services.TicketServiceImpl;
+import ticketmasta.services.TicketServiceActorImpl;
 
 
 public class App {
@@ -16,13 +17,16 @@ public class App {
 
     public static void main(String[] args) {
         System.out.println(new App().getGreeting());
-       ITicketService ticketMasta = TicketServiceImpl.getInstance(30, 70);
+        ITicketService ticketMasta = TicketServiceActorImpl.getInstance(30, 70);
         try {
-	        	while (true) {
-	        		// TODO: process command from input
-	        }
+//	        	while (true) {
+//	        		// TODO: process command from input
+//	        }
+        	// create user session command
+        	System.out.println(ticketMasta.numSeatsAvailable());
+        		
         } catch (Exception e) {
-        		System.err.println(e.getStackTrace());
+        		System.err.println(e.getStackTrace().toString());
         } finally {
         		ticketMasta.shutdown();
         }
