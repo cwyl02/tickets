@@ -23,10 +23,10 @@ dependencies {
     // This dependency is found on compile classpath of this component and consumers.
     compile 'com.google.guava:guava:23.0'
     // Use JUnit test framework
-    testCompile 'junit:junit:4.12'
     compile group: 'org.scala-lang', name: 'scala-library', version: '2.12.4'
     compile group: 'com.typesafe.akka', name: 'akka-actor_2.12', version: '2.5.8'
   	testCompile group: 'com.typesafe.akka', name: 'akka-testkit_2.12', version: '2.5.8'
+  	testCompile 'junit:junit:4.12'
 }
 
 // Define the main class for the application

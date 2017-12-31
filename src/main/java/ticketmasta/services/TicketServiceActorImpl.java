@@ -1,6 +1,7 @@
 package ticketmasta.services;
 
 import java.text.MessageFormat;
+import java.util.HashMap;
 import java.util.UUID;
 
 import akka.actor.ActorContext;
@@ -13,34 +14,48 @@ import scala.concurrent.Await;
 import scala.concurrent.Future;
 import scala.concurrent.duration.Duration;
 import ticketmasta.actors.SeatActor;
-import ticketmasta.actors.BoxOfficeActor;
-import ticketmasta.actors.OperationManagerActor;
+import ticketmasta.actors.VenueInquiryActor;
+import ticketmasta.actors.VenueBookingActor;
+import ticketmasta.actors.ServiceManagerActor;
 import ticketmasta.messages.AvailableSeatsRequestMessage;
 import ticketmasta.messages.AvailableSeatsResponseMessage;
+import ticketmasta.messages.FindAndHoldSeatsRequestMessage;
+import ticketmasta.messages.FindAndHoldSeatsResponseMessage;
 import ticketmasta.messages.SeatStatusResponseMessage;
 import ticketmasta.objects.SeatHold;
 
 public class TicketServiceActorImpl implements ITicketService {
 	
-	private long futureTimeout = 1000000000l;  // milliseconds
-	private Duration awaitTimeout = Duration.Inf();
 	private ActorSystem ticketService;
-	private ActorContext context;
 	private ActorRef managerActor;
+	private Duration awaitTimeout = Duration.Inf();
+	private HashMap<String, ActorRef> customerBookingActorMap;
+	private long futureTimeout = 10000l;  // milliseconds
+	private static int seatHoldExpirationTimeout;
 	private int rows;
 	private int columns;
 	
+	public static int getSeatHoldExpirationTimeout() {
+		return seatHoldExpirationTimeout;
+	}
+
+	public static void setSeatHoldExpirationTimeout(int seatHoldExpirationTimeout) {
+		TicketServiceActorImpl.seatHoldExpirationTimeout = seatHoldExpirationTimeout;
+	}
+
 	private TicketServiceActorImpl(int ro, int col) {
 		this.rows = ro;
 		this.columns = col;
-		ticketService = ActorSystem.create("TicketMasta");
-		managerActor = this.ticketService.actorOf(OperationManagerActor.props(rows, columns), "ops-manager");
+		this.ticketService = ActorSystem.create("TicketMasta");
+		this.managerActor = this.ticketService.actorOf(ServiceManagerActor.props(rows, columns), "ops-manager");
 		// spinning up seats
-		for (int i = 0; i < ro; i++) {
-			for (int j = 0; j < col; j++) {
-				ticketService.actorOf(SeatActor.props(i, j, col), MessageFormat.format("Seat-{0},{1}", i, j).toString());
+		for (int i = 0; i < rows; i++) {
+			for (int j = 0; j < columns; j++) {
+				this.ticketService.actorOf(SeatActor.props(i, j, col), 
+						MessageFormat.format("Seat-{0},{1}", i, j).toString());
 			}
 		}
+		this.customerBookingActorMap = new HashMap<String, ActorRef>();
 	}
 	
 	public ActorSystem getTicketService() {
@@ -48,6 +63,7 @@ public class TicketServiceActorImpl implements ITicketService {
 	}
 	
 	public static TicketServiceActorImpl getInstance(int ro, int co) {
+		seatHoldExpirationTimeout = 5; // default seat hold expiration
 		return new TicketServiceActorImpl(ro, co);
 	}
 
@@ -57,9 +73,6 @@ public class TicketServiceActorImpl implements ITicketService {
 	
 	@Override
 	public int numSeatsAvailable() {
-		ActorSelection seatActors = this.getSeatActors();
-		String uuid = UUID.randomUUID().toString();
-		//MessageFormat.format("BoxOffice-{0}", uuid)
 		Future<Object> fmsg = Patterns.ask(managerActor, new AvailableSeatsRequestMessage(), futureTimeout);
 		try {
 			AvailableSeatsResponseMessage msg = (AvailableSeatsResponseMessage)Await.result(fmsg, awaitTimeout);
@@ -73,8 +86,15 @@ public class TicketServiceActorImpl implements ITicketService {
 
 	@Override
 	public SeatHold findAndHoldSeats(int numSeats, String customerEmail) {
-		// TODO Auto-generated method stub
-		return null;
+		Future<Object> fmsg = Patterns.ask(managerActor, new FindAndHoldSeatsRequestMessage(customerEmail, numSeats), futureTimeout);
+		try {
+			FindAndHoldSeatsResponseMessage msg = (FindAndHoldSeatsResponseMessage)Await.result(fmsg, awaitTimeout);
+			return msg.getHeldSeats();
+		} catch (Exception e) {
+			System.out.println("Error in findAndHoldSeats");
+			e.printStackTrace();
+			return null;
+		}
 	}
 
 	@Override
@@ -86,7 +106,7 @@ public class TicketServiceActorImpl implements ITicketService {
 	@Override
 	public void shutdown() {
 		// TODO Auto-generated method stub
-		
+		ticketService.terminate();
 	}
 
 }

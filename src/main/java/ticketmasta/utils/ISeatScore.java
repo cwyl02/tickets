@@ -6,5 +6,5 @@ public interface ISeatScore {
 	*
 	* @return the number of tickets available in the venue
 	*/
-	int getSeatScore();
+	int getScoreValue();
 }
