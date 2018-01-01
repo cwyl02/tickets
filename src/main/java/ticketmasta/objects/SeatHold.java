@@ -1,10 +1,11 @@
 package ticketmasta.objects;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 public class SeatHold {
-	private List<String> heldSeats;
+	private List<Seat> heldSeats;
 	private int id;
 	private boolean success;
 	
@@ -17,7 +18,7 @@ public class SeatHold {
 	}
 
 	public SeatHold() {
-		heldSeats = new ArrayList<String>();
+		heldSeats = new ArrayList<Seat>();
 	}
 	
 	public int getId() {
@@ -28,12 +29,20 @@ public class SeatHold {
 		this.id = id;
 	}
 
-	public void holdSeat(String s) {
+	public void holdSeat(Seat s) {
 		heldSeats.add(s);
+	}
+	
+	public List<Seat> getHeldSeats() {
+		return heldSeats;
+	}
+
+	public Iterator<Seat> seatsInfoIterator() {
+		return this.heldSeats.iterator();
 	}
 	
 	@Override
 	public String toString() {
-		return success ? heldSeats.toString() : "failed to hold seats";
+		return success ? new Integer(id).toString() : "failed to hold seats";
 	}
 }

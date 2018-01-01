@@ -8,17 +8,20 @@
 
 ### Assumptions  ###
 
-* Definition of "best": the closer to the center the better, the more front the better
-* If the application is modified to running on a REAL concurrent environment.(Right now all the actions are based on a sequence of commands.)
-1. Find and Hold best seats will be FAILable, which will let user to attempt again. :(
-2. 
+1. Definition of "best": the closer to the center the better, the more front the better
+
+2. Find and Hold best seats will be FAILable, which will let user to attempt again.
+
+3. A customer can only reserve seats after he holds a bunch of seats.
+
+4. I am praying for UUID collisions not happening.
+
+5. I am assuming there is no message loss, which might happen in real life.
 
 
 ### Thoughts ###
-* Akka has a become/unbecome mechanism that can swap the createReceive() event handler during runtime.
-It wipes out the need to maintain a seat status if we make use of that(if feasible.)
-But I didn't figure out how to take advantage of this to handle the state transition.
+* The strategy to find the best seats is to be improved. Right now it tries to aggregate results from all the seats. Luckily it is fast enough, because I am initialize a venue that has a capacity of 300,000, which exceeds the seats of Indianapolis Motor Speedway.
 
-* At the very last, thank you guys for giving me this opportunity! Since this is the first time I write a java application from the ground up. 
-
-* Any feedbacks regarding to this project only are highly appreciated.
+### Reference ###
+1. https://doc.akka.io/docs/akka/current/actors.html?language=java
+2. https://en.wikipedia.org/wiki/List_of_sporting_venues_with_a_highest_attendance_of_100,000_or_more

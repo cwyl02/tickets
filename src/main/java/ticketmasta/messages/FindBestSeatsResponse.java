@@ -2,11 +2,11 @@ package ticketmasta.messages;
 
 import ticketmasta.objects.Seat;
 
-public class FindBestSeatsResponseMessage {
+public class FindBestSeatsResponse {
 	private Seat seat;
 	private String customerEmail;
 	
-	public FindBestSeatsResponseMessage(Seat seat, String email) {
+	public FindBestSeatsResponse(Seat seat, String email) {
 		this.seat = seat;
 		this.customerEmail = email;
 	}

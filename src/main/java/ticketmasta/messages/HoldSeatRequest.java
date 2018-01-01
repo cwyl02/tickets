@@ -1,9 +1,9 @@
 package ticketmasta.messages;
 
-public class HoldSeatRequestMessage {
+public class HoldSeatRequest {
 	private final String customerEmail;
 	
-	public HoldSeatRequestMessage(String customerEmail) {
+	public HoldSeatRequest(String customerEmail) {
 		this.customerEmail = customerEmail;
 	}
 

@@ -1,91 +1,159 @@
 package ticketmasta.actors;
 
+import java.text.MessageFormat;
+import java.util.Iterator;
 import java.util.concurrent.TimeUnit;
 
 import akka.actor.AbstractActor;
 import akka.actor.ActorRef;
+import akka.actor.ActorSelection;
 import akka.actor.ActorSystem;
 import akka.actor.Props;
+import akka.actor.Scheduler;
 import akka.event.Logging;
 import akka.event.LoggingAdapter;
+import scala.collection.GenTraversableOnce;
 import scala.concurrent.duration.FiniteDuration;
 
-import ticketmasta.messages.HoldSeatRequestMessage;
-import ticketmasta.messages.HoldSeatResponseMessage;
-import ticketmasta.messages.BecomeHeldMessage;
-import ticketmasta.messages.FindBestSeatsRequestMessage;
-import ticketmasta.messages.FindBestSeatsResponseMessage;
-import ticketmasta.messages.SeatStatusRequestMessage;
-import ticketmasta.messages.SeatStatusResponseMessage;
+import ticketmasta.messages.HoldSeatRequest;
+import ticketmasta.messages.HoldSeatResponse;
+import ticketmasta.messages.ReserveSingleSeatRequest;
+import ticketmasta.messages.ReserveSingleSeatResponse;
+import ticketmasta.messages.BecomeAvailableRequest;
+import ticketmasta.messages.BecomeHeldRequest;
+import ticketmasta.messages.FindBestSeatsRequest;
+import ticketmasta.messages.FindBestSeatsResponse;
+import ticketmasta.messages.HoldExpiredRequest;
+import ticketmasta.messages.SeatStatusRequest;
+import ticketmasta.messages.SeatStatusResponse;
 import ticketmasta.objects.Seat;
 import ticketmasta.objects.SeatStatus;
 import ticketmasta.services.TicketServiceActorImpl;
 
 public class SeatActor extends AbstractActor {
 
+	private static final FiniteDuration holdExpiration = new FiniteDuration(
+			TicketServiceActorImpl.getSeatHoldExpirationTimeout(), TimeUnit.SECONDS);
 	private final LoggingAdapter log = Logging.getLogger(getContext().getSystem(), this);
 	private ActorSystem actorSystem;
+	private Scheduler scheduler;
 	private Receive held;
 	private Receive available;
 	private Receive reserved;
-	
 	private Seat seat;
-	//TODO: better variable name
 	
 	public static Props props(int ro, int co, int totalCol) {
 		return Props.create(SeatActor.class, () -> new SeatActor(ro, co, totalCol));
 	}
 	
 	public SeatActor(int ro, int co, int totalCol){
-		seat = new Seat(ro, co, totalCol);
+		this.seat = new Seat(ro, co, totalCol);
+		// the behavior(the message handler) when it is available
+		available = receiveBuilder()
+				.match(SeatStatusRequest.class, m -> { // sent from service manager actor
+					log.debug("Received SeatStatusRequestMessage: {}", m.toString());
+					ActorRef inquiryActor = m.replyTo;
+					inquiryActor.tell(new SeatStatusResponse(SeatStatus.Available), inquiryActor);
+				})
+				.match(FindBestSeatsRequest.class, m -> { // sent from service manager actor
+					log.debug("Received FindBestSeatsRequestMessage message: {}", m.toString());
+					ActorRef bookingActor = m.replyTo;
+					if (!this.getContext().getChildren().iterator().hasNext())
+						bookingActor.tell(new FindBestSeatsResponse(seat, m.getCustomerEmail()), bookingActor);
+					else
+						bookingActor.tell(new FindBestSeatsResponse(null, m.getCustomerEmail()), bookingActor);
+				})
+				.match(HoldSeatRequest.class, m -> { // sent from booking actor
+					log.debug("Received HoldSeatRequestMessage message: {}", m.toString());
+					ActorRef bookingActor = getSender();
+					bookingActor.tell(
+							new HoldSeatResponse(m.getCustomerEmail(), seat, true), 
+							getSelf());
+					// transform to behave like held
+					getSelf().tell(new BecomeHeldRequest(m.getCustomerEmail()), getSelf());
+				})
+				.match(BecomeHeldRequest.class, m -> {
+					ActorRef customerActor = this.getContext().actorOf(CustomerActor.props(m.getEmail()), 
+							MessageFormat.format("Customer-{0}", m.getEmail()));
+					// tell the child to terminate after the time out
+					this.scheduleSendingMessage(this.scheduler, holdExpiration, customerActor, new HoldExpiredRequest());
+					// swap back to available after seatHold expires
+					this.scheduleSendingMessage(this.scheduler, holdExpiration, getSelf(), new BecomeAvailableRequest());
+					this.getContext().become(held, true);
+				})
+				.build();
+		
+		/* the behavior when it is held. 
+		It is added to the behavior stack so common handler for FindBestSeatsRequestMessage it is using the one specified in available
+		*/ 
+		held = receiveBuilder()
+				.match(SeatStatusRequest.class, m -> { // sent from service manager actor
+					log.debug("Received SeatStatusRequestMessage: {}", m.toString());
+					ActorRef inquiryActor = m.replyTo;
+					inquiryActor.tell(new SeatStatusResponse(SeatStatus.Held), inquiryActor);
+				})
+				.match(HoldSeatRequest.class, m -> { // sent from booking actor
+					log.debug("Received HoldSeatRequestMessage message: {}", m.toString());
+					ActorRef bookingActor = getSender();
+					bookingActor.tell(
+							new HoldSeatResponse(m.getCustomerEmail(), seat, false), 
+							getSelf());
+				})
+				.match(BecomeAvailableRequest.class, m -> {
+					this.getContext().become(available, true);
+				})
+				.match(ReserveSingleSeatRequest.class, m -> {
+					String customerEmail = m.getCustomerEmail();
+					// should only have at most one
+					Iterator<ActorRef> customerIter = this.getContext().getChildren().iterator();
+					ActorRef heldBy;
+					if (customerIter.hasNext()) {
+						heldBy = customerIter.next();
+						heldBy.tell(new ReserveSingleSeatRequest(customerEmail, m.getSeatHoldId()), getSelf());
+					} else {
+						getSender().tell(new ReserveSingleSeatResponse(customerEmail, m.getSeatHoldId(), false), getSelf());
+					}
+				})
+				.match(ReserveSingleSeatResponse.class, m -> {
+					ActorSelection reservationActor = this.getContext().getSystem().actorSelection(
+							MessageFormat.format("/user/manager/BoxOffice-R-{0}", m.getSeatHoldId()));
+					reservationActor.tell(m, getSelf());
+					if (m.isSuccess()) {
+						this.getContext().become(reserved);
+					}
+				})
+				.build();
+		
+		// the behavior when it is reserved
+		reserved = receiveBuilder()
+				.match(SeatStatusRequest.class, m -> { // sent from service manager actor
+					log.debug("Received SeatStatusRequestMessage: {}", m.toString());
+					ActorRef inquiryActor = m.replyTo;
+					inquiryActor.tell(new SeatStatusResponse(SeatStatus.Reserved), inquiryActor);
+				})
+				.match(BecomeAvailableRequest.class, m -> {
+					log.debug("Already reserved ignoring this BecomeAvailableRequest...%n");
+				})
+				.build();
+	}
+	
+	private void scheduleSendingMessage(Scheduler s, FiniteDuration t, ActorRef receiver, Object msg) {
+		s.scheduleOnce(t, receiver, msg, this.actorSystem.dispatcher(), getSelf());
 	}
 	
 	@Override
 	public void preStart() {
 		this.actorSystem = this.getContext().getSystem();
-		this.getContext().become(available);
+		this.scheduler = this.actorSystem.scheduler();
+		this.getContext().become(available, true);
 	}
 	
-	
+	/** Place holder. It will be substituted to available/held/reserved handler specified above
+	 * during runtime depends on the "state" of this actor.
+	 * */
 	@Override
 	public Receive createReceive() {
-		return receiveBuilder()
-				.match(SeatStatusRequestMessage.class, m -> { // sent from service manager actor
-					log.debug("Received AvailableSeatsRequestMessage message: {}", m.toString());
-					ActorRef inquiryActor = m.replyTo;
-					inquiryActor.tell(new SeatStatusResponseMessage(seat.getStatus()), inquiryActor);
-				})
-				.match(FindBestSeatsRequestMessage.class, m -> { // sent from service manager actor
-					log.debug("Received PreHoldSeatRequestMessage message: {}", m.toString());
-					ActorRef bookingActor = m.replyTo;
-					bookingActor.tell(new FindBestSeatsResponseMessage(seat, m.getCustomerEmail()), bookingActor);
-				})
-				.match(HoldSeatRequestMessage.class, m -> { // sent from booking actor
-					log.debug("Received HoldSeatRequestMessage message: {}", m.toString());
-					ActorRef bookingActor = getSender();
-					if (this.seat.getStatus() == SeatStatus.Available) {
-						seat = new Seat(seat, SeatStatus.Held, m.getCustomerEmail());
-						bookingActor.tell(
-								new HoldSeatResponseMessage(m.getCustomerEmail(), seat.getRow(), seat.getColumn(), true), 
-								getSelf());
-						// "transform" back to held
-						getSelf().tell(new BecomeHeldMessage(), getSelf());
-					} else {
-						bookingActor.tell(
-								new HoldSeatResponseMessage(m.getCustomerEmail(), seat.getRow(), seat.getColumn(), false), 
-								getSelf());
-					}
-				})
-				.match(BecomeHeldMessage.class, m -> {
-					this.getContext().become(held);
-					this.actorSystem.scheduler().scheduleOnce(
-							new FiniteDuration(TicketServiceActorImpl.getSeatHoldExpirationTimeout(), TimeUnit.SECONDS), 
-							getSelf(), 
-							new BecomeHeldMessage(), 
-							this.actorSystem.dispatcher(), 
-							getSelf());
-				})
-				.build();
+		return receiveBuilder().build();
 	}
 	
 	@Override

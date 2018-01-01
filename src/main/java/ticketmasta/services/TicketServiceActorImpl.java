@@ -15,13 +15,15 @@ import scala.concurrent.Future;
 import scala.concurrent.duration.Duration;
 import ticketmasta.actors.SeatActor;
 import ticketmasta.actors.VenueInquiryActor;
-import ticketmasta.actors.VenueBookingActor;
+import ticketmasta.actors.VenueHoldingActor;
 import ticketmasta.actors.ServiceManagerActor;
-import ticketmasta.messages.AvailableSeatsRequestMessage;
-import ticketmasta.messages.AvailableSeatsResponseMessage;
-import ticketmasta.messages.FindAndHoldSeatsRequestMessage;
-import ticketmasta.messages.FindAndHoldSeatsResponseMessage;
-import ticketmasta.messages.SeatStatusResponseMessage;
+import ticketmasta.messages.AvailableSeatsRequest;
+import ticketmasta.messages.AvailableSeatsResponse;
+import ticketmasta.messages.FindAndHoldSeatsRequest;
+import ticketmasta.messages.FindAndHoldSeatsResponse;
+import ticketmasta.messages.ReserveSeatsRequest;
+import ticketmasta.messages.ReserveSeatsResponse;
+import ticketmasta.messages.SeatStatusResponse;
 import ticketmasta.objects.SeatHold;
 
 public class TicketServiceActorImpl implements ITicketService {
@@ -29,8 +31,7 @@ public class TicketServiceActorImpl implements ITicketService {
 	private ActorSystem ticketService;
 	private ActorRef managerActor;
 	private Duration awaitTimeout = Duration.Inf();
-	private HashMap<String, ActorRef> customerBookingActorMap;
-	private long futureTimeout = 10000l;  // milliseconds
+	private long futureTimeout = 60000l;  // milliseconds
 	private static int seatHoldExpirationTimeout;
 	private int rows;
 	private int columns;
@@ -47,15 +48,7 @@ public class TicketServiceActorImpl implements ITicketService {
 		this.rows = ro;
 		this.columns = col;
 		this.ticketService = ActorSystem.create("TicketMasta");
-		this.managerActor = this.ticketService.actorOf(ServiceManagerActor.props(rows, columns), "ops-manager");
-		// spinning up seats
-		for (int i = 0; i < rows; i++) {
-			for (int j = 0; j < columns; j++) {
-				this.ticketService.actorOf(SeatActor.props(i, j, col), 
-						MessageFormat.format("Seat-{0},{1}", i, j).toString());
-			}
-		}
-		this.customerBookingActorMap = new HashMap<String, ActorRef>();
+		this.managerActor = this.ticketService.actorOf(ServiceManagerActor.props(rows, columns), "manager");
 	}
 	
 	public ActorSystem getTicketService() {
@@ -66,16 +59,12 @@ public class TicketServiceActorImpl implements ITicketService {
 		seatHoldExpirationTimeout = 5; // default seat hold expiration
 		return new TicketServiceActorImpl(ro, co);
 	}
-
-	private ActorSelection getSeatActors() {
-		return this.ticketService.actorSelection("/user/Seat*");
-	}
 	
 	@Override
 	public int numSeatsAvailable() {
-		Future<Object> fmsg = Patterns.ask(managerActor, new AvailableSeatsRequestMessage(), futureTimeout);
+		Future<Object> fmsg = Patterns.ask(managerActor, new AvailableSeatsRequest(), futureTimeout);
 		try {
-			AvailableSeatsResponseMessage msg = (AvailableSeatsResponseMessage)Await.result(fmsg, awaitTimeout);
+			AvailableSeatsResponse msg = (AvailableSeatsResponse)Await.result(fmsg, awaitTimeout);
 			return msg.getNumAvailableSeats();
 		} catch (Exception e) {
 			System.out.println("Error in numSeatsAvailable()");
@@ -86,10 +75,14 @@ public class TicketServiceActorImpl implements ITicketService {
 
 	@Override
 	public SeatHold findAndHoldSeats(int numSeats, String customerEmail) {
-		Future<Object> fmsg = Patterns.ask(managerActor, new FindAndHoldSeatsRequestMessage(customerEmail, numSeats), futureTimeout);
+		Future<Object> fmsg = Patterns.ask(managerActor, new FindAndHoldSeatsRequest(customerEmail, numSeats), futureTimeout);
 		try {
-			FindAndHoldSeatsResponseMessage msg = (FindAndHoldSeatsResponseMessage)Await.result(fmsg, awaitTimeout);
-			return msg.getHeldSeats();
+			FindAndHoldSeatsResponse msg = (FindAndHoldSeatsResponse)Await.result(fmsg, awaitTimeout);
+			SeatHold sh = msg.getHeldSeats(); 
+			if (sh.isSuccess()) {
+				return sh;
+			} else 
+				return null;
 		} catch (Exception e) {
 			System.out.println("Error in findAndHoldSeats");
 			e.printStackTrace();
@@ -99,13 +92,24 @@ public class TicketServiceActorImpl implements ITicketService {
 
 	@Override
 	public String reserveSeats(int seatHoldId, String customerEmail) {
-		// TODO Auto-generated method stub
-		return null;
+		Future<Object> fmsg = Patterns.ask(managerActor, new ReserveSeatsRequest(seatHoldId, customerEmail), futureTimeout);
+		try {
+			ReserveSeatsResponse msg = (ReserveSeatsResponse)Await.result(fmsg, awaitTimeout);
+			String ret;
+			if (msg.isSuccess())
+				ret = msg.getConfirmationCode();
+			else
+				ret = null;
+			return ret;
+		} catch (Exception e) {
+			System.out.println("Error in reserveSeats");
+			e.printStackTrace();
+			return null;
+		}
 	}
 
 	@Override
 	public void shutdown() {
-		// TODO Auto-generated method stub
 		ticketService.terminate();
 	}
 

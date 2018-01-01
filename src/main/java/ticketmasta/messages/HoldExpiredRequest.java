@@ -1,5 +1,5 @@
 package ticketmasta.messages;
 
-public class BecomeHeldMessage {
+public class HoldExpiredRequest {
 
 }

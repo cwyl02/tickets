@@ -2,10 +2,10 @@ package ticketmasta.messages;
 
 import ticketmasta.objects.SeatStatus;
 
-public class SeatStatusResponseMessage {
+public class SeatStatusResponse {
 	private SeatStatus status;
 	
-	public SeatStatusResponseMessage(SeatStatus status) {
+	public SeatStatusResponse(SeatStatus status) {
 		this.status = status;
 	}
 

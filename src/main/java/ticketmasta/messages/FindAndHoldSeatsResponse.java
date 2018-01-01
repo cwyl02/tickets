@@ -2,10 +2,10 @@ package ticketmasta.messages;
 
 import ticketmasta.objects.SeatHold;
 
-public class FindAndHoldSeatsResponseMessage {
+public class FindAndHoldSeatsResponse {
 	private SeatHold heldSeats;
 	
-	public FindAndHoldSeatsResponseMessage(SeatHold seats) {
+	public FindAndHoldSeatsResponse(SeatHold seats) {
 		heldSeats = seats;
 	}
 

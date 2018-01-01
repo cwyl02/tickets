@@ -1,9 +1,9 @@
 package ticketmasta.messages;
 
-public class AvailableSeatsResponseMessage {
+public class AvailableSeatsResponse {
 	private int numAvailableSeats;
 	
-	public AvailableSeatsResponseMessage(int num) {
+	public AvailableSeatsResponse(int num) {
 		numAvailableSeats = num;
 	}
 

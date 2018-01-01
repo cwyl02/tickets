@@ -8,34 +8,21 @@ import ticketmasta.utils.SeatComparator;
 
 public class Seat {
 	private static SeatComparator comparator;
-	private String heldBy;
 	private final int row;
 	private final int column;
 	private final int totalColumns;
-	private final SeatStatus status;
 	private final ISeatScore score;
-	
 	
 	public Seat(int ro, int co, int totalCol) {
 		row = ro;
 		column = co;
 		totalColumns = totalCol;
-		status = SeatStatus.Available;
 		score = new ISeatScore () {
 			@Override
 			public int getScoreValue() {
 				return -1 * Math.abs(column - totalColumns / 2) - row * 100;
 			}
 		};
-	}
-	
-	public Seat(Seat s, SeatStatus ss, String customerEmail) {
-		row = s.row;
-		column = s.column;
-		totalColumns = s.totalColumns;
-		score = s.getScore();
-		status = ss;
-		heldBy = customerEmail;
 	}
 	
 	public int getRow() {
@@ -48,10 +35,6 @@ public class Seat {
 
 	public int getTotalColumns() {
 		return totalColumns;
-	}
-
-	public SeatStatus getStatus() {
-		return status;
 	}
 
 	public ISeatScore getScore() {
