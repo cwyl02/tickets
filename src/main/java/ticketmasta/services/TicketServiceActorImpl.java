@@ -1,21 +1,11 @@
 package ticketmasta.services;
 
-import java.text.MessageFormat;
-import java.util.HashMap;
-import java.util.UUID;
-
-import akka.actor.ActorContext;
 import akka.actor.ActorRef;
-import akka.actor.ActorSelection;
 import akka.actor.ActorSystem;
-import akka.actor.Props;
 import akka.pattern.Patterns;
 import scala.concurrent.Await;
 import scala.concurrent.Future;
 import scala.concurrent.duration.Duration;
-import ticketmasta.actors.SeatActor;
-import ticketmasta.actors.VenueInquiryActor;
-import ticketmasta.actors.VenueHoldingActor;
 import ticketmasta.actors.ServiceManagerActor;
 import ticketmasta.messages.AvailableSeatsRequest;
 import ticketmasta.messages.AvailableSeatsResponse;
@@ -23,7 +13,6 @@ import ticketmasta.messages.FindAndHoldSeatsRequest;
 import ticketmasta.messages.FindAndHoldSeatsResponse;
 import ticketmasta.messages.ReserveSeatsRequest;
 import ticketmasta.messages.ReserveSeatsResponse;
-import ticketmasta.messages.SeatStatusResponse;
 import ticketmasta.objects.SeatHold;
 
 public class TicketServiceActorImpl implements ITicketService {
@@ -31,8 +20,8 @@ public class TicketServiceActorImpl implements ITicketService {
 	private ActorSystem ticketService;
 	private ActorRef managerActor;
 	private Duration awaitTimeout = Duration.Inf();
-	private long futureTimeout = 60000l;  // milliseconds
-	private static int seatHoldExpirationTimeout;
+	private long futureTimeout = 30000l;  // milliseconds
+	private static int seatHoldExpirationTimeout = 30; // default seat hold expiration, in seconds
 	private int rows;
 	private int columns;
 	
@@ -40,6 +29,8 @@ public class TicketServiceActorImpl implements ITicketService {
 		return seatHoldExpirationTimeout;
 	}
 
+	/* For tests
+	 * */
 	public static void setSeatHoldExpirationTimeout(int seatHoldExpirationTimeout) {
 		TicketServiceActorImpl.seatHoldExpirationTimeout = seatHoldExpirationTimeout;
 	}
@@ -56,7 +47,6 @@ public class TicketServiceActorImpl implements ITicketService {
 	}
 	
 	public static TicketServiceActorImpl getInstance(int ro, int co) {
-		seatHoldExpirationTimeout = 5; // default seat hold expiration
 		return new TicketServiceActorImpl(ro, co);
 	}
 	

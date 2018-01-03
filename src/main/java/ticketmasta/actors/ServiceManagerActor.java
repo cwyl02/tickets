@@ -37,7 +37,10 @@ public class ServiceManagerActor extends AbstractActor {
 		columns = co;
 	}
 	
+	/* Create 
+	 * */
 	public void preStart() {
+		System.out.println("Please wait for seats initialzation...");
 		// spinning up seats
 		for (int i = 0; i < rows; i++) {
 			for (int j = 0; j < columns; j++) {
@@ -45,6 +48,7 @@ public class ServiceManagerActor extends AbstractActor {
 						MessageFormat.format("Seat-{0},{1}", i, j).toString());
 			}
 		}
+		System.out.println("Seats initialization done!");
 		context = getContext();
 		system = context.getSystem();
 	}
@@ -54,14 +58,12 @@ public class ServiceManagerActor extends AbstractActor {
 		// TODO Auto-generated method stub
 		return receiveBuilder()
 				.match(AvailableSeatsRequest.class, m -> {
-					log.debug("Received AvailableSeatsRequestMessage");
 					ActorRef inquiryActor = context.actorOf(VenueInquiryActor.props(getSelf(), getSender(), rows, columns), 
 							MessageFormat.format("BoxOffice-A-{0}", UUID.randomUUID().toString()));
 					ActorSelection seatActors = system.actorSelection("/user/manager/Seat*");
 					seatActors.tell(new SeatStatusRequest(inquiryActor), getSelf());
 				})
 				.match(FindAndHoldSeatsRequest.class, m -> {
-					log.debug("Received FindAndHoldSeatsRequestMessage");
 					String uuid = UUID.randomUUID().toString();
 					ActorRef bookingActor = context.actorOf(VenueHoldingActor.props(
 							getSelf(), getSender(), uuid, m.getNumSeats(), rows, columns), 
@@ -70,19 +72,13 @@ public class ServiceManagerActor extends AbstractActor {
 					seatActors.tell(new FindBestSeatsRequest(bookingActor, m.getCustomerEmail(), m.getNumSeats()), getSelf());
 				})
 				.match(CreateReservationActorRequest.class, m -> { // only after a seatHold is successful
-					ActorRef reservationActor = context.actorOf(VenueResevationActor.props(
+					context.actorOf(VenueResevationActor.props(
 							getSelf(), getSender(), m.getSeatHold(), rows, columns),
-							MessageFormat.format("BoxOffice-R-{0}", m.getSeatHold().getId()));
-					system.scheduler().scheduleOnce(
-							new FiniteDuration(TicketServiceActorImpl.getSeatHoldExpirationTimeout(), TimeUnit.SECONDS),
-							reservationActor,
-							new HoldExpiredRequest(),
-							system.dispatcher(),
-							getSelf());
+							MessageFormat.format("BoxOffice-R-{0}", Integer.toString(m.getSeatHold().getId())));
 				})
 				.match(ReserveSeatsRequest.class, m -> {
 					ActorSelection reservationActor = context.getSystem().actorSelection(
-							MessageFormat.format("/user/manager/BoxOffice-R-{0}", m.getSeatHoldId()));
+							MessageFormat.format("/user/manager/BoxOffice-R-{0}", Integer.toString(m.getSeatHoldId())));
 					m.setReplyTo(getSender());
 					reservationActor.tell(m, getSelf());
 				})

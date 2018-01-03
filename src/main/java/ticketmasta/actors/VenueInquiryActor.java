@@ -22,8 +22,6 @@ public class VenueInquiryActor extends VenueActor {
 		return Props.create(VenueInquiryActor.class, () -> new VenueInquiryActor(manager, replyTo, ro, co));
 	}
 	
-	/** access constructor from outside
-	 * */
 	private VenueInquiryActor(ActorRef manager, ActorRef replyTo, int ro, int co) {
 		super(manager, replyTo, ro, co);
 		this.seatCount = new AtomicInteger();

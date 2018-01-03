@@ -57,7 +57,7 @@ public class VenueHoldingActor extends VenueActor {
 											bestSeat.getRow(), bestSeat.getColumn()).toString());
 							seatActor.tell(new HoldSeatRequest(m.getCustomerEmail()), getSelf());
 						}
-						messageCount.lazySet(0);// clear count for hold seat reponse counting
+						messageCount.lazySet(0);// clear count for hold seat response counting
 					}
 				})
 				.match(HoldSeatResponse.class, m -> {

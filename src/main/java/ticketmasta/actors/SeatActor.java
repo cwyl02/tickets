@@ -48,7 +48,8 @@ public class SeatActor extends AbstractActor {
 	
 	public SeatActor(int ro, int co, int totalCol){
 		this.seat = new Seat(ro, co, totalCol);
-		// the behavior(the message handler) when it is available
+		/*  the behavior when it is available
+		 * */
 		available = receiveBuilder()
 				.match(SeatStatusRequest.class, m -> { // sent from service manager actor
 					log.debug("Received SeatStatusRequestMessage: {}", m.toString());
@@ -57,16 +58,16 @@ public class SeatActor extends AbstractActor {
 				})
 				.match(FindBestSeatsRequest.class, m -> { // sent from service manager actor
 					log.debug("Received FindBestSeatsRequestMessage message: {}", m.toString());
-					ActorRef bookingActor = m.replyTo;
+					ActorRef holdingActor = m.replyTo;
 					if (!this.getContext().getChildren().iterator().hasNext())
-						bookingActor.tell(new FindBestSeatsResponse(seat, m.getCustomerEmail()), bookingActor);
+						holdingActor.tell(new FindBestSeatsResponse(seat, m.getCustomerEmail()), holdingActor);
 					else
-						bookingActor.tell(new FindBestSeatsResponse(null, m.getCustomerEmail()), bookingActor);
+						holdingActor.tell(new FindBestSeatsResponse(null, m.getCustomerEmail()), holdingActor);
 				})
 				.match(HoldSeatRequest.class, m -> { // sent from booking actor
 					log.debug("Received HoldSeatRequestMessage message: {}", m.toString());
-					ActorRef bookingActor = getSender();
-					bookingActor.tell(
+					ActorRef holdingActor = getSender();
+					holdingActor.tell(
 							new HoldSeatResponse(m.getCustomerEmail(), seat, true), 
 							getSelf());
 					// transform to behave like held
@@ -116,15 +117,16 @@ public class SeatActor extends AbstractActor {
 				})
 				.match(ReserveSingleSeatResponse.class, m -> {
 					ActorSelection reservationActor = this.getContext().getSystem().actorSelection(
-							MessageFormat.format("/user/manager/BoxOffice-R-{0}", m.getSeatHoldId()));
+							MessageFormat.format("/user/manager/BoxOffice-R-{0}", Integer.toString(m.getSeatHoldId())));
 					reservationActor.tell(m, getSelf());
 					if (m.isSuccess()) {
-						this.getContext().become(reserved);
+						this.getContext().become(reserved);// notice there is no 2nd boolean arg
 					}
 				})
 				.build();
 		
-		// the behavior when it is reserved
+		/* the behavior when it is reserved. Will be applied on top of held handler.
+		 */
 		reserved = receiveBuilder()
 				.match(SeatStatusRequest.class, m -> { // sent from service manager actor
 					log.debug("Received SeatStatusRequestMessage: {}", m.toString());
@@ -134,6 +136,9 @@ public class SeatActor extends AbstractActor {
 				.match(BecomeAvailableRequest.class, m -> {
 					log.debug("Already reserved ignoring this BecomeAvailableRequest...%n");
 				})
+				.match(ReserveSingleSeatRequest.class, m -> {
+					getSender().tell(new ReserveSingleSeatResponse(m.getCustomerEmail(), m.getSeatHoldId(), false), getSelf());
+				})
 				.build();
 	}
 	
@@ -141,11 +146,13 @@ public class SeatActor extends AbstractActor {
 		s.scheduleOnce(t, receiver, msg, this.actorSystem.dispatcher(), getSelf());
 	}
 	
+	/* When the actor is initializing
+	 * */
 	@Override
 	public void preStart() {
 		this.actorSystem = this.getContext().getSystem();
 		this.scheduler = this.actorSystem.scheduler();
-		this.getContext().become(available, true);
+		this.getContext().become(available, true);// true means clear the behavior stack
 	}
 	
 	/** Place holder. It will be substituted to available/held/reserved handler specified above

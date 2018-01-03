@@ -26,7 +26,7 @@ public class CustomerActor extends AbstractActor {
 				})
 				.match(ReserveSingleSeatRequest.class, m -> {
 					String requestedCustomerEmail = m.getCustomerEmail();
-					if (requestedCustomerEmail == this.customerEmail) {
+					if (requestedCustomerEmail.equals(this.customerEmail)) {
 						getSender().tell(new ReserveSingleSeatResponse(requestedCustomerEmail, m.getSeatHoldId(), true), 
 								getSelf());
 					} else {

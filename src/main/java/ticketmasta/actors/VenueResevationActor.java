@@ -35,7 +35,6 @@ public class VenueResevationActor extends VenueActor {
 		this.expired = receiveBuilder()
 				.match(ReserveSeatsRequest.class, m -> {
 					super.replyTo.tell(new ReserveSeatsResponse(null, false), getSelf());
-					this.shutdown();
 				})
 				.build();
 	}
@@ -68,13 +67,16 @@ public class VenueResevationActor extends VenueActor {
 					if (success) {
 						reservedSeatsCount.addAndGet(1);
 					}
+					// when aggregation is done
 					if (messageCount.get() == numSeatsToReserve) {
 						if (reservedSeatsCount.get() == numSeatsToReserve) {
 							UUID uuid = UUID.nameUUIDFromBytes(this.seatHold.toString().getBytes());
 							super.replyTo.tell(new ReserveSeatsResponse(uuid.toString(), true), getSelf());
 						} else {
+							System.out.println(messageCount.get());
 							super.replyTo.tell(new ReserveSeatsResponse(null, false), getSelf());
 						}
+						this.getContext().getSystem().stop(getSelf());
 					}
 					
 				})
@@ -82,7 +84,6 @@ public class VenueResevationActor extends VenueActor {
 					this.getContext().become(expired, true);
 				})
 				.build();
-				
 	}
 
 }
