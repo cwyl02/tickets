@@ -16,7 +16,7 @@ import ticketmasta.messages.AvailableSeatsRequest;
 import ticketmasta.messages.CreateReservationActorRequest;
 import ticketmasta.messages.FindAndHoldSeatsRequest;
 import ticketmasta.messages.FindBestSeatsRequest;
-import ticketmasta.messages.HoldExpiredRequest;
+import ticketmasta.messages.ExpiredRequest;
 import ticketmasta.messages.ReserveSeatsRequest;
 import ticketmasta.messages.SeatStatusRequest;
 import ticketmasta.services.TicketServiceActorImpl;

@@ -2,7 +2,7 @@ package ticketmasta.actors;
 
 import akka.actor.AbstractActor;
 import akka.actor.Props;
-import ticketmasta.messages.HoldExpiredRequest;
+import ticketmasta.messages.ExpiredRequest;
 import ticketmasta.messages.ReserveSingleSeatRequest;
 import ticketmasta.messages.ReserveSingleSeatResponse;
 
@@ -21,7 +21,7 @@ public class CustomerActor extends AbstractActor {
 	@Override
 	public Receive createReceive() {
 		return receiveBuilder()
-				.match(HoldExpiredRequest.class, m -> {
+				.match(ExpiredRequest.class, m -> {
 					this.shutdown();
 				})
 				.match(ReserveSingleSeatRequest.class, m -> {

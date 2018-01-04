@@ -1,6 +1,8 @@
 package ticketmasta.actors;
 
 import java.text.MessageFormat;
+import java.util.LinkedList;
+import java.util.List;
 
 import akka.actor.ActorRef;
 import akka.actor.ActorSelection;
@@ -50,14 +52,26 @@ public class VenueHoldingActor extends VenueActor {
 						this.bestSeats.add(seat);
 					}
 					if (messageCount.get() == rows * columns) {
+//						log.info(Integer.toString(this.bestSeats.size()));
+						List<Seat> seatsToHold = new LinkedList<Seat>();
 						for (int i = 0; i < this.numSeatsRequested; i++) {
 							Seat bestSeat = this.bestSeats.poll();
-							ActorSelection seatActor = getContext().getSystem()
-									.actorSelection(MessageFormat.format("/user/manager/Seat-{0},{1}", 
-											bestSeat.getRow(), bestSeat.getColumn()).toString());
-							seatActor.tell(new HoldSeatRequest(m.getCustomerEmail()), getSelf());
+							if (bestSeat != null)
+								seatsToHold.add(bestSeat);
 						}
-						messageCount.lazySet(0);// clear count for hold seat response counting
+						if (seatsToHold.size() != numSeatsRequested) {
+							this.seatHold.setSuccess(false);
+							this.replyTo.tell(new FindAndHoldSeatsResponse(this.seatHold), getSelf());
+						} else {
+							for (Seat s : seatsToHold) {
+								ActorSelection seatActor = getContext().getSystem()
+										.actorSelection(MessageFormat.format("/user/manager/Seat-{0},{1}", 
+												s.getRow(), s.getColumn()).toString());
+								seatActor.tell(new HoldSeatRequest(m.getCustomerEmail()), getSelf());
+							}
+							
+						}
+							messageCount.lazySet(0);// clear count for hold seat response counting
 					}
 				})
 				.match(HoldSeatResponse.class, m -> {

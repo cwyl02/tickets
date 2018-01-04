@@ -23,7 +23,7 @@ import ticketmasta.messages.BecomeAvailableRequest;
 import ticketmasta.messages.BecomeHeldRequest;
 import ticketmasta.messages.FindBestSeatsRequest;
 import ticketmasta.messages.FindBestSeatsResponse;
-import ticketmasta.messages.HoldExpiredRequest;
+import ticketmasta.messages.ExpiredRequest;
 import ticketmasta.messages.SeatStatusRequest;
 import ticketmasta.messages.SeatStatusResponse;
 import ticketmasta.objects.Seat;
@@ -54,15 +54,15 @@ public class SeatActor extends AbstractActor {
 				.match(SeatStatusRequest.class, m -> { // sent from service manager actor
 					log.debug("Received SeatStatusRequestMessage: {}", m.toString());
 					ActorRef inquiryActor = m.replyTo;
-					inquiryActor.tell(new SeatStatusResponse(SeatStatus.Available), inquiryActor);
+					inquiryActor.tell(new SeatStatusResponse(SeatStatus.Available), getSelf());
 				})
 				.match(FindBestSeatsRequest.class, m -> { // sent from service manager actor
 					log.debug("Received FindBestSeatsRequestMessage message: {}", m.toString());
 					ActorRef holdingActor = m.replyTo;
 					if (!this.getContext().getChildren().iterator().hasNext())
-						holdingActor.tell(new FindBestSeatsResponse(seat, m.getCustomerEmail()), holdingActor);
+						holdingActor.tell(new FindBestSeatsResponse(seat, m.getCustomerEmail()), getSelf());
 					else
-						holdingActor.tell(new FindBestSeatsResponse(null, m.getCustomerEmail()), holdingActor);
+						holdingActor.tell(new FindBestSeatsResponse(null, m.getCustomerEmail()), getSelf());
 				})
 				.match(HoldSeatRequest.class, m -> { // sent from booking actor
 					log.debug("Received HoldSeatRequestMessage message: {}", m.toString());
@@ -77,7 +77,7 @@ public class SeatActor extends AbstractActor {
 					ActorRef customerActor = this.getContext().actorOf(CustomerActor.props(m.getEmail()), 
 							MessageFormat.format("Customer-{0}", m.getEmail()));
 					// tell the child to terminate after the time out
-					this.scheduleSendingMessage(this.scheduler, holdExpiration, customerActor, new HoldExpiredRequest());
+					this.scheduleSendingMessage(this.scheduler, holdExpiration, customerActor, new ExpiredRequest());
 					// swap back to available after seatHold expires
 					this.scheduleSendingMessage(this.scheduler, holdExpiration, getSelf(), new BecomeAvailableRequest());
 					this.getContext().become(held, true);
@@ -91,7 +91,11 @@ public class SeatActor extends AbstractActor {
 				.match(SeatStatusRequest.class, m -> { // sent from service manager actor
 					log.debug("Received SeatStatusRequestMessage: {}", m.toString());
 					ActorRef inquiryActor = m.replyTo;
-					inquiryActor.tell(new SeatStatusResponse(SeatStatus.Held), inquiryActor);
+					inquiryActor.tell(new SeatStatusResponse(SeatStatus.Held), getSelf());
+				})
+				.match(FindBestSeatsRequest.class, m -> { // sent from service manager actor
+					ActorRef holdingActor = m.replyTo;
+					holdingActor.tell(new FindBestSeatsResponse(null, m.getCustomerEmail()), getSelf());
 				})
 				.match(HoldSeatRequest.class, m -> { // sent from booking actor
 					log.debug("Received HoldSeatRequestMessage message: {}", m.toString());
@@ -120,7 +124,7 @@ public class SeatActor extends AbstractActor {
 							MessageFormat.format("/user/manager/BoxOffice-R-{0}", Integer.toString(m.getSeatHoldId())));
 					reservationActor.tell(m, getSelf());
 					if (m.isSuccess()) {
-						this.getContext().become(reserved);// notice there is no 2nd boolean arg
+						this.getContext().become(reserved, true);
 					}
 				})
 				.build();
@@ -133,7 +137,11 @@ public class SeatActor extends AbstractActor {
 					ActorRef inquiryActor = m.replyTo;
 					inquiryActor.tell(new SeatStatusResponse(SeatStatus.Reserved), inquiryActor);
 				})
-				.match(BecomeAvailableRequest.class, m -> {
+				.match(FindBestSeatsRequest.class, m -> { // sent from service manager actor
+					ActorRef holdingActor = m.replyTo;
+					holdingActor.tell(new FindBestSeatsResponse(null, m.getCustomerEmail()), getSelf());
+				})
+				.match(BecomeAvailableRequest.class, m -> { 
 					log.debug("Already reserved ignoring this BecomeAvailableRequest...%n");
 				})
 				.match(ReserveSingleSeatRequest.class, m -> {

@@ -20,7 +20,7 @@ public class TicketServiceActorImpl implements ITicketService {
 	private ActorSystem ticketService;
 	private ActorRef managerActor;
 	private Duration awaitTimeout = Duration.Inf();
-	private long futureTimeout = 30000l;  // milliseconds
+	private long futureTimeout = 15000l;  // milliseconds
 	private static int seatHoldExpirationTimeout = 30; // default seat hold expiration, in seconds
 	private int rows;
 	private int columns;

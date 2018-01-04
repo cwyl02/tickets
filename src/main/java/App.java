@@ -12,7 +12,7 @@ public class App {
 
     public static void main(String[] args) {
         System.out.println(getGreeting());
-        ITicketService ticketMasta = TicketServiceActorImpl.getInstance(300, 500);
+        ITicketService ticketMasta = TicketServiceActorImpl.getInstance(100, 300);
         Scanner scanner = new Scanner(System.in); 
         try {
 	        	while (true) {

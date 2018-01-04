@@ -10,7 +10,7 @@ import akka.actor.ActorSelection;
 import akka.actor.Props;
 import akka.event.Logging;
 import akka.event.LoggingAdapter;
-import ticketmasta.messages.HoldExpiredRequest;
+import ticketmasta.messages.ExpiredRequest;
 import ticketmasta.messages.ReserveSeatsRequest;
 import ticketmasta.messages.ReserveSeatsResponse;
 import ticketmasta.messages.ReserveSingleSeatRequest;
@@ -22,7 +22,9 @@ public class VenueResevationActor extends VenueActor {
 	private final LoggingAdapter log = Logging.getLogger(getContext().getSystem(), this);
 	private AtomicInteger reservedSeatsCount;
 	private Receive expired;
+	private Receive completed;
 	private SeatHold seatHold;
+	private String confirmationId;
 	
 	public static Props props(ActorRef manager, ActorRef replyTo, SeatHold sh, int ro, int co) {
 		return Props.create(VenueResevationActor.class, () -> new VenueResevationActor(manager, replyTo, sh, ro, co));
@@ -35,6 +37,11 @@ public class VenueResevationActor extends VenueActor {
 		this.expired = receiveBuilder()
 				.match(ReserveSeatsRequest.class, m -> {
 					super.replyTo.tell(new ReserveSeatsResponse(null, false), getSelf());
+				})
+				.build();
+		this.completed = receiveBuilder()
+				.match(ReserveSeatsRequest.class, m -> {
+					super.replyTo.tell(new ReserveSeatsResponse(this.confirmationId, true), getSelf());
 				})
 				.build();
 	}
@@ -71,19 +78,19 @@ public class VenueResevationActor extends VenueActor {
 					if (messageCount.get() == numSeatsToReserve) {
 						if (reservedSeatsCount.get() == numSeatsToReserve) {
 							UUID uuid = UUID.nameUUIDFromBytes(this.seatHold.toString().getBytes());
-							super.replyTo.tell(new ReserveSeatsResponse(uuid.toString(), true), getSelf());
+							this.confirmationId = uuid.toString();
+							super.replyTo.tell(new ReserveSeatsResponse(this.confirmationId, true), getSelf());
 						} else {
 							System.out.println(messageCount.get());
 							super.replyTo.tell(new ReserveSeatsResponse(null, false), getSelf());
 						}
-						this.getContext().getSystem().stop(getSelf());
+						this.getContext().become(completed, true);
 					}
 					
 				})
-				.match(HoldExpiredRequest.class, m -> {
+				.match(ExpiredRequest.class, m -> {
 					this.getContext().become(expired, true);
 				})
 				.build();
 	}
-
 }
